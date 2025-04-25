@@ -22,24 +22,18 @@
             <select id="chromecast-device">
                 <option value="">Searching for devices...</option>
             </select>
-            <div class="button-group">
-                <button id="refresh-btn">
-                    <span class="material-icons">refresh</span>
-                    Refresh Devices
-                </button>
-                <button id="connect-btn">
-                    <span class="material-icons">link</span>
-                    Connect
-                </button>
-            </div>
+            <button id="refresh-btn">
+                <span class="material-icons">refresh</span>
+                Refresh Devices
+            </button>
         </div>
 
         <div class="control-group">
-            <label for="video-path">
+            <label for="video-file">
                 <span class="material-icons">video_library</span>
-                Video URL
+                Select Video File
             </label>
-            <input type="text" id="video-path" placeholder="Enter video URL (e.g., http://example.com/video.mp4)">
+            <input type="file" id="video-file" accept="video/*">
             <button id="play-btn">
                 <span class="material-icons">play_arrow</span>
                 Play Video

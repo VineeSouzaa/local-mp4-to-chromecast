@@ -1,8 +1,7 @@
 document.addEventListener('DOMContentLoaded', () => {
     const deviceSelect = document.getElementById('chromecast-device');
     const refreshBtn = document.getElementById('refresh-btn');
-    const videoPathInput = document.getElementById('video-path');
-    const connectBtn = document.getElementById('connect-btn');
+    const videoFileInput = document.getElementById('video-file');
     const playBtn = document.getElementById('play-btn');
     const pauseBtn = document.getElementById('pause-btn');
     const resumeBtn = document.getElementById('resume-btn');
@@ -27,36 +26,6 @@ document.addEventListener('DOMContentLoaded', () => {
         statusDiv.style.animation = 'fadeIn 0.3s ease-in-out';
     }
 
-    async function makeRequest(endpoint, data) {
-        try {
-            const response = await fetch(`/api/${endpoint}`, {
-                method: 'POST',
-                headers: {
-                    'Content-Type': 'application/json',
-                },
-                body: JSON.stringify(data),
-            });
-
-            const result = await response.json();
-            if (!response.ok) {
-                throw new Error(result.error || 'Request failed');
-            }
-            return result;
-        } catch (error) {
-            throw error;
-        }
-    }
-
-    async function loadDevices() {
-        try {
-            const response = await fetch('/api/devices');
-            devices = await response.json();
-            updateDeviceList();
-        } catch (error) {
-            updateStatus('Failed to load devices', true);
-        }
-    }
-
     function updateDeviceList() {
         deviceSelect.innerHTML = devices.length
             ? devices.map(device => `<option value="${device.address}">${device.name}</option>`).join('')
@@ -72,49 +41,45 @@ document.addEventListener('DOMContentLoaded', () => {
         }
     });
 
-    // Event listeners
-    refreshBtn.addEventListener('click', async () => {
-        deviceSelect.innerHTML = '<option value="">Searching for devices...</option>';
-        try {
-            await makeRequest('discover', {});
-            updateStatus('Searching for Chromecast devices...', false);
-        } catch (error) {
-            updateStatus('Failed to start device discovery', true);
-        }
+    socket.on('status', (status) => {
+        updateStatus(`Player status: ${status.playerState}`);
     });
 
-    connectBtn.addEventListener('click', async () => {
+    socket.on('error', (error) => {
+        updateStatus(error, true);
+    });
+
+    // Event listeners
+    refreshBtn.addEventListener('click', () => {
+        deviceSelect.innerHTML = '<option value="">Searching for devices...</option>';
+        devices = [];
+        updateStatus('Searching for Chromecast devices...');
+    });
+
+    playBtn.addEventListener('click', () => {
+        const file = videoFileInput.files[0];
         const address = deviceSelect.value;
-        if (!address) {
-            updateStatus('Please select a Chromecast device', true);
+
+        if (!file) {
+            updateStatus('Please select a video file first', true);
             return;
         }
 
-        try {
-            connectBtn.disabled = true;
-            connectBtn.innerHTML = '<span class="material-icons">hourglass_empty</span> Connecting...';
-            await makeRequest('connect', { address });
-            updateStatus('Connected to Chromecast successfully');
-        } catch (error) {
-            updateStatus(`Connection failed: ${error.message}`, true);
-        } finally {
-            connectBtn.disabled = false;
-            connectBtn.innerHTML = '<span class="material-icons">link</span> Connect';
-        }
-    });
-
-    playBtn.addEventListener('click', async () => {
-        const videoPath = videoPathInput.value.trim();
-        if (!videoPath) {
-            updateStatus('Please enter a video path', true);
+        if (!address) {
+            updateStatus('Please select a Chromecast device first', true);
             return;
         }
 
         try {
             playBtn.disabled = true;
-            playBtn.innerHTML = '<span class="material-icons">hourglass_empty</span> Loading...';
-            await makeRequest('play', { url: videoPath });
-            updateStatus('Playing video');
+            playBtn.innerHTML = '<span class="material-icons">hourglass_empty</span> Playing...';
+            
+            socket.emit('play', {
+                address: address,
+                filePath: file.path
+            });
+            
+            updateStatus('Playing video...');
         } catch (error) {
             updateStatus(`Failed to play video: ${error.message}`, true);
         } finally {
@@ -123,41 +88,43 @@ document.addEventListener('DOMContentLoaded', () => {
         }
     });
 
-    pauseBtn.addEventListener('click', async () => {
-        try {
-            await makeRequest('pause', {});
-            updateStatus('Video paused');
-        } catch (error) {
-            updateStatus(`Failed to pause video: ${error.message}`, true);
+    pauseBtn.addEventListener('click', () => {
+        const address = deviceSelect.value;
+        if (!address) {
+            updateStatus('Please select a Chromecast device first', true);
+            return;
         }
+        socket.emit('pause', { address });
     });
 
-    resumeBtn.addEventListener('click', async () => {
-        try {
-            await makeRequest('resume', {});
-            updateStatus('Video resumed');
-        } catch (error) {
-            updateStatus(`Failed to resume video: ${error.message}`, true);
+    resumeBtn.addEventListener('click', () => {
+        const address = deviceSelect.value;
+        if (!address) {
+            updateStatus('Please select a Chromecast device first', true);
+            return;
         }
+        socket.emit('resume', { address });
     });
 
-    rewindBtn.addEventListener('click', async () => {
-        try {
-            await makeRequest('rewind', {});
-            updateStatus('Video rewound 10 seconds');
-        } catch (error) {
-            updateStatus(`Failed to rewind video: ${error.message}`, true);
+    rewindBtn.addEventListener('click', () => {
+        const address = deviceSelect.value;
+        if (!address) {
+            updateStatus('Please select a Chromecast device first', true);
+            return;
         }
+        socket.emit('rewind', { address });
     });
 
-    playbackRateSelect.addEventListener('change', async () => {
+    playbackRateSelect.addEventListener('change', () => {
+        const address = deviceSelect.value;
         const rate = parseFloat(playbackRateSelect.value);
-        try {
-            await makeRequest('setPlaybackRate', { rate });
-            updateStatus(`Playback speed set to ${rate}x`);
-        } catch (error) {
-            updateStatus(`Failed to set playback speed: ${error.message}`, true);
+        
+        if (!address) {
+            updateStatus('Please select a Chromecast device first', true);
+            return;
         }
+        
+        socket.emit('setPlaybackRate', { address, rate });
     });
 
     // Add touch feedback for mobile devices
@@ -170,7 +137,4 @@ document.addEventListener('DOMContentLoaded', () => {
             button.style.transform = 'scale(1)';
         });
     });
-
-    // Initial device discovery
-    loadDevices();
 }); 
